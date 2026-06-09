@@ -9,9 +9,8 @@ use axum::{
 pub struct IndexTemplate {
     pub domain: String,
     pub password_enabled: bool,
-    pub max_time_mins: f32,
-    pub min_time_mins: f32,
-    pub max_file_size_mb: u64,
+    pub retention_mins: f32,
+    pub version: &'static str,
 }
 
 pub struct HtmlTemplate<T>(pub T);

@@ -40,8 +40,7 @@ pub struct Config {
     pub max_filename_length: usize,
     pub max_on_disk_storage: usize,
     pub max_file_size: u64,
-    pub max_retention_mns: f32,
-    pub min_retention_mns: f32,
+    pub retention_mins: f32,
     pub version: &'static str,
     pub password: Option<String>,
 }
@@ -63,8 +62,7 @@ impl Default for Config {
             max_filename_length: env_or("DUMAHH_MAX_FILENAME_LENGTH", 240),
             max_on_disk_storage: env_or("DUMAHH_MAX_ON_DISK_STORAGE", 5 * 1024 * 1024 * 1024),
             max_file_size: env_or("DUMAHH_MAX_FILE_SIZE", 100 * 1024 * 1024),
-            max_retention_mns: env_or("DUMAHH_MAX_RETENTION_MNS", 60.0),
-            min_retention_mns: env_or("DUMAHH_MIN_RETENTION_MNS", 5.0),
+            retention_mins: env_or("DUMAHH_RETENTION_MINS", 5.0),
             password: {
                 let a = env_or("DUMAHH_PASSWORD", "".to_string());
                 if a.is_empty() { None } else { Some(a) }

@@ -1,8 +1,9 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::state::{CONFIG, DownloadForm, RunTimeState};
 use crate::template::{HtmlTemplate, IndexTemplate};
-use crate::utils::{DumAhhError, clean_filename, limit_filename_len, parse_url};
+use crate::utils::{DumAhhError, clean_file, clean_filename, limit_filename_len, parse_url};
 use axum::Form;
 use axum::body::Body;
 use axum::http::header::CONTENT_DISPOSITION;
@@ -18,9 +19,8 @@ pub async fn root() -> impl IntoResponse {
     HtmlTemplate(IndexTemplate {
         domain: format!("{}://{}", CONFIG.external_protocol, CONFIG.external_host),
         password_enabled: CONFIG.password.is_some(),
-        max_time_mins: CONFIG.max_retention_mns,
-        min_time_mins: CONFIG.min_retention_mns,
-        max_file_size_mb: CONFIG.max_file_size / (1024 * 1024),
+        retention_mins: CONFIG.retention_mins,
+        version: CONFIG.version,
     })
 }
 
@@ -145,5 +145,17 @@ pub async fn download(
             },
         )?,
     );
+
+    /* add cleanup */
+
+    tokio::spawn(async {
+        let seconds = (CONFIG.retention_mins * 60.0) as u64;
+        debug!(
+            "will delete {:?} after {} seconds",
+            cleaned_filepath, seconds
+        );
+        tokio::time::sleep(Duration::from_secs(seconds)).await;
+        clean_file(cleaned_filepath).await;
+    });
     Ok((StatusCode::OK, response))
 }

@@ -36,15 +36,56 @@
         background: var(--bg);
         color: var(--pr);
       }
-      input,
-      textarea {
+      input {
+        width: min(550px, 100%);
+        padding: 0.65rem 0.9rem;
+
         background: transparent;
         border: 1px solid var(--pr);
         color: var(--pr);
+
+        border-radius: 0;
+        outline: none;
+
+        transition:
+          border-color 0.15s ease,
+          box-shadow 0.15s ease;
+      }
+
+      input::placeholder {
+        opacity: 0.6;
+      }
+
+      input:focus {
+        box-shadow: 3px 3px 0 var(--pr);
       }
       a {
         text-decoration: none;
         color: var(--link);
+      }
+
+      button {
+        padding: 0.65rem 1rem;
+
+        background: transparent;
+        border: 1px solid var(--pr);
+        color: var(--pr);
+
+        border-radius: 0;
+        cursor: pointer;
+
+        transition:
+          transform 0.1s ease,
+          box-shadow 0.15s ease;
+      }
+
+      button:hover {
+        box-shadow: 3px 3px 0 var(--pr);
+      }
+
+      button:active {
+        transform: translate(2px, 2px);
+        box-shadow: 1px 1px 0 var(--pr);
       }
     </style>
   </head>
@@ -61,47 +102,15 @@ easy download files
 <form
   action="."
   method="post"
-  id="upload_form">  <textarea required name="url" id="url_list" placeholder="url list, 1 per line"></textarea>
+  id="upload_form">  <input required name="url" id="url_list" placeholder="URL"/>
   {% if password_enabled %} 
-  <input type="password" placeholder="Password" name="password" />
+  <input type="password" required placeholder="Password" name="password" />
   {% endif %}
-  <button type="submit">download</button></form>
+  <button type="submit">Download</button></form>
+
+files are deleted automatically after {{ retention_mins }} mins.
+
 ------------------------------------------------------------------------- ////
-
-files are deleted automatically depending on the size of the file using the
-following equation:
-
-max_time = {{ max_time_mins }} mins
-max_size = {{ max_file_size_mb }} MB
-min_time = {{ min_time_mins }} mins
-time = min_time + max_time * (1 - file_size / max_size) ^ e
-
-here's a pretty graph of the above equation:
-
-  max   +.
- mins   |..
-        | ...
-        |   ..
-        |     ..
-        |      ...
-        |        ...
-t       |          ..
-i       |            ..
-m max/2 |              ...
-e       |                ...
-        |                  ...
-        |                     ...
-        |                        ...
-        |                           ....
-        |                              .....
-        |                                  ......
-        |                                       ..............
-        |                                                    ................
-      0 +----------------------------------------------------------------------+
-        0                            max size / 2                       max size
-                                     size (MB)
-                                       
-//// -------------------------------------------------------------------------
 
 <details><summary>TOS</summary><p>Please do not download any of the following:
   * ai slop
@@ -113,7 +122,7 @@ e       |                ...
   * terrorist content
   * anything illegal under Indian law</p>
 </details>
-<a target="_blank" href="https://github.com/prashantrahul141/dumahhfiles">source :3</a>
+<a target="_blank" href="https://github.com/prashantrahul141/dumahhfiles">source :3</a> (#{{ version }})
 </pre>
   </body>
 </html>

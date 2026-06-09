@@ -1,7 +1,8 @@
 use axum::response::IntoResponse;
 use lazy_static::lazy_static;
-use std::io;
+use std::{io, path::PathBuf};
 use thiserror::Error;
+use tracing::debug;
 use url::Url;
 
 #[derive(Error, Debug)]
@@ -104,4 +105,9 @@ pub fn limit_filename_len<S: AsRef<str>>(filename: S, max_len: usize) -> String 
 
         None => truncate(filename, max_len),
     }
+}
+
+pub async fn clean_file(path: PathBuf) {
+    debug!("removing file = {:?}", path);
+    _ = tokio::fs::remove_file(path).await;
 }
