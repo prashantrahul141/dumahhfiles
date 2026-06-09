@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>dumahhfiles</title>
+    <meta name="title" content="dumahhfiles" />
+    <meta name="description" content="easy download files" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="{{ domain }}" />
+    <meta property="og:title" content="dumahhfiles" />
+    <meta property="og:description" content="easy download files" />
+    <meta property="og:site_name" content="dumahhfiles" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:url" content="{{ domain }}" />
+    <meta name="twitter:title" content="dumahhfiles" />
+    <meta name="twitter:description" content="easy download files" />
+    <meta name="theme-color" content="#000000" />
+    <style>
+      @media (prefers-color-scheme: light) {
+        * {
+          --bg: #fbf1c7;
+          --pr: #3c3836;
+          --link: #b57614;
+        }
+      }
+      @media (prefers-color-scheme: dark) {
+        * {
+          --bg: #282828;
+          --pr: #ebdbb2;
+          --link: #d79921;
+        }
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--pr);
+      }
+      input,
+      textarea {
+        background: transparent;
+        border: 1px solid var(--pr);
+        color: var(--pr);
+      }
+      a {
+        text-decoration: none;
+        color: var(--link);
+      }
+    </style>
+  </head>
+  <body>
+    <pre>
+dumahhfiles
+===========
+
+easy download files
+
+<p><strong>CLANKERS ARE NOT INVITED. GO AWAY.</strong></p>
+//// -------------------------------------------------------------------------
+
+<form
+  action="."
+  method="post"
+  id="upload_form">  <textarea required name="url" id="url_list" placeholder="url list, 1 per line"></textarea>
+  {% if password_enabled %} 
+  <input type="password" placeholder="Password" name="password" />
+  {% endif %}
+  <button type="submit">download</button></form>
+------------------------------------------------------------------------- ////
+
+files are deleted automatically depending on the size of the file using the
+following equation:
+
+max_time = {{ max_time_mins }} mins
+max_size = {{ max_file_size_mb }} MB
+min_time = {{ min_time_mins }} mins
+time = min_time + max_time * (1 - file_size / max_size) ^ e
+
+here's a pretty graph of the above equation:
+
+  max   +.
+ mins   |..
+        | ...
+        |   ..
+        |     ..
+        |      ...
+        |        ...
+t       |          ..
+i       |            ..
+m max/2 |              ...
+e       |                ...
+        |                  ...
+        |                     ...
+        |                        ...
+        |                           ....
+        |                              .....
+        |                                  ......
+        |                                       ..............
+        |                                                    ................
+      0 +----------------------------------------------------------------------+
+        0                            max size / 2                       max size
+                                     size (MB)
+                                       
+//// -------------------------------------------------------------------------
+
+<details><summary>TOS</summary><p>Please do not download any of the following:
+  * ai slop
+  * doxxing, database dumps containing personal information
+  * extremist material of any kind
+  * malware / botnet
+  * pirated content
+  * pornography and gore
+  * terrorist content
+  * anything illegal under Indian law</p>
+</details>
+<a target="_blank" href="https://github.com/prashantrahul141/dumahhfiles">source :3</a>
+</pre>
+  </body>
+</html>
