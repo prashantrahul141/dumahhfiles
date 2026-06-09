@@ -3,11 +3,13 @@ mod state;
 mod template;
 mod utils;
 
-use crate::routes::root;
-use crate::state::CONFIG;
+use crate::routes::{download, root};
+use crate::state::{CONFIG, RunTimeState};
 use axum::{Router, http::Request, response::Response, routing::get};
 use std::fs;
+use std::sync::Arc;
 use std::{net::SocketAddr, time::Duration};
+use tokio::sync::RwLock;
 use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
 use tracing::{Span, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -52,10 +54,12 @@ async fn main() {
     setup_files_dir();
     info!("config = {CONFIG:?}");
 
+    // app state
+    let state = Arc::new(RwLock::new(RunTimeState::new().await));
+
     // axum app
     let app = Router::new()
-        .route("/", get(root))
-        // .route("/{filename}", get(serve_file))
+        .route("/", get(root).post(download))
         .layer(
             TraceLayer::new_for_http()
                 .on_request(|_request: &Request<_>, _span: &Span| {
@@ -69,7 +73,8 @@ async fn main() {
                         tracing::error!("request failed")
                     },
                 ),
-        );
+        )
+        .with_state(state);
 
     // serve
     let addr = SocketAddr::new(CONFIG.internal_host.parse().unwrap(), CONFIG.internal_port);

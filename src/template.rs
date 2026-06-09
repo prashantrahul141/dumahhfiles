@@ -11,9 +11,8 @@ pub struct IndexTemplate {
     pub password_enabled: bool,
     pub max_time_mins: f32,
     pub min_time_mins: f32,
-    pub max_file_size_mb: usize,
+    pub max_file_size_mb: u64,
 }
-
 
 pub struct HtmlTemplate<T>(pub T);
 
