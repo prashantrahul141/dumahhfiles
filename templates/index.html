@@ -106,7 +106,7 @@ easy download files
   {% if password_enabled %} 
   <input type="password" required placeholder="Password" name="password" />
   {% endif %}
-  <button type="submit" id="submit_btn">Download</button></form>
+  <button type="submit" id="submit_btn">download</button></form>
 
 files are deleted automatically after {{ retention_mins }} mins.
 
@@ -129,9 +129,11 @@ files are deleted automatically after {{ retention_mins }} mins.
     const form = document.getElementById('upload_form');
     const btn = document.getElementById('submit_btn');
     form.addEventListener('submit', async () => {
+      console.log('runing');
+      btn.disabled = true;
+      btn.textContent = 'downloading...';
       e.preventDefault();
       const data = new URLSearchParams(new FormData(form));
-      btn.disabled = true;
       try {
         const response = await fetch('/', {
           method: 'POST',
