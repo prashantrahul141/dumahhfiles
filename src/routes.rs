@@ -10,7 +10,7 @@ use axum::http::header::CONTENT_DISPOSITION;
 use axum::http::{HeaderValue, Request};
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
 use tower::ServiceExt;
-use tracing::{debug, error};
+use tracing::{debug, error, info};
 
 pub async fn root() -> impl IntoResponse {
     HtmlTemplate(IndexTemplate {
@@ -26,7 +26,7 @@ pub async fn download(
     Form(download_form): Form<DownloadForm>,
 ) -> Result<impl IntoResponse, (StatusCode, DumAhhError)> {
     let parsed_url = parse_url(&download_form.url).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
-    debug!(parsed_url = parsed_url.as_str());
+    info!(parsed_url = parsed_url.as_str());
 
     /* if passwords enabled */
     if CONFIG.password.is_some() {
@@ -38,6 +38,7 @@ pub async fn download(
     }
 
     /* total files limit */
+    info!("prelimary on disk size check");
     let ondisk = *state.on_disk_files_size.read().await;
     if ondisk >= CONFIG.max_on_disk_storage {
         error!(
@@ -48,9 +49,29 @@ pub async fn download(
         return Err((StatusCode::INSUFFICIENT_STORAGE, DumAhhError::OutOfStorage));
     }
 
+    info!("getting metadata");
+    /* fetch metadata */
+    let metadata = state
+        .downloader
+        .get_metadata(&download_form.url)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    debug!("getting mediatype");
+    let mediatype = state
+        .downloader
+        .get_media_type(metadata)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    if mediatype != "video" {
+        error!("mediatype is not a video =  {}", mediatype);
+        return Err((StatusCode::NOT_ACCEPTABLE, DumAhhError::NotAVideo));
+    }
+
     /* if we can check file size now, check it */
     let mut was_filesize_updated = false;
-    debug!("trying to check filesize");
+    info!("trying to check filesize");
     if let Ok(filesize) = state.downloader.get_filesize(&download_form.url).await {
         debug!("was able to retrieve file size = {}", filesize);
         was_filesize_updated = true;
@@ -77,7 +98,7 @@ pub async fn download(
     }
 
     /* create filename */
-    debug!("cleaning filename and path");
+    info!("cleaning filename and path");
     let raw_filename = state
         .downloader
         .get_filename(&download_form.url)
@@ -86,17 +107,17 @@ pub async fn download(
 
     let filename = limit_filename_len(clean_filename(raw_filename), CONFIG.max_filename_length);
     let filepath = CONFIG.root_dir.join(&filename);
-    debug!("filename = {:?}, filepath = {:?}", &filename, &filepath);
+    info!("filename = {:?}, filepath = {:?}", &filename, &filepath);
 
     /* start download */
-    debug!("adding download to queue");
+    info!("adding download to queue");
     let _ = state
         .downloader
         .download(&download_form.url, &filename)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
-    debug!("download done, returing file path = {:?}", &filepath);
+    info!("download done, returing file path = {:?}", &filepath);
 
     /* create service to return file */
     let service = tower_http::services::ServeFile::new(&filepath);
