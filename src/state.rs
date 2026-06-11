@@ -1,31 +1,21 @@
 use crate::utils::env_or;
+use crate::yt_dlp::YtDlp;
 use lazy_static::lazy_static;
 use serde::Deserialize;
 use std::{fmt::Debug, path::PathBuf};
-use tracing::{debug, info};
-use yt_dlp::{Downloader, client::Libraries};
+use tokio::sync::RwLock;
 
 #[derive(Debug)]
 pub struct RunTimeState {
-    pub on_disk_files_size: usize,
-    pub downloader: Downloader,
+    pub downloader: YtDlp,
+    pub on_disk_files_size: RwLock<usize>,
 }
 
 impl RunTimeState {
     pub async fn new() -> Self {
-        info!("setting up new runttimestate");
-        let libraries = Libraries::new(PathBuf::from("yt-dlp"), PathBuf::from("ffmpeg"));
-        let downloader = Downloader::builder(libraries, "output")
-            .add_arg("--no-playlist")
-            .add_arg(format!("--max-filesize={}", CONFIG.max_file_size))
-            .add_arg("--abort-on-error ")
-            .build()
-            .await
-            .unwrap();
-        debug!("yt-dlp args: {:?}", downloader.args());
         Self {
+            downloader: YtDlp::default(),
             on_disk_files_size: Default::default(),
-            downloader,
         }
     }
 }
@@ -39,9 +29,11 @@ pub struct Config {
     pub external_host: String,
     pub max_filename_length: usize,
     pub max_on_disk_storage: usize,
-    pub max_file_size: u64,
+    pub max_file_size: usize,
     pub retention_mins: f32,
+    pub concurrent_downlods: usize,
     pub version: &'static str,
+    pub yt_dlp_path: String,
     pub password: Option<String>,
 }
 
@@ -54,7 +46,7 @@ pub struct DownloadForm {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            root_dir: std::path::PathBuf::from(env_or("DUMAHH_ROOT_DIR", "files".to_string())),
+            root_dir: std::path::PathBuf::from(env_or("DUMAHH_ROOT_DIR", "./files".to_string())),
             internal_host: env_or("DUMAHH_INTERNAL_HOST", "0.0.0.0".to_string()),
             internal_port: env_or("DUMAHH_INTERNAL_PORT", 3000),
             external_protocol: env_or("DUMAHH_EXTERNAL_PROTOCOL", "http".to_string()),
@@ -63,10 +55,12 @@ impl Default for Config {
             max_on_disk_storage: env_or("DUMAHH_MAX_ON_DISK_STORAGE", 5 * 1024 * 1024 * 1024),
             max_file_size: env_or("DUMAHH_MAX_FILE_SIZE", 100 * 1024 * 1024),
             retention_mins: env_or("DUMAHH_RETENTION_MINS", 5.0),
+            concurrent_downlods: env_or("DUMAHH_CONCURRENT_DOWNLOAD", 3),
             password: {
-                let a = env_or("DUMAHH_PASSWORD", "".to_string());
-                if a.is_empty() { None } else { Some(a) }
+                let p = env_or("DUMAHH_PASSWORD", "".to_string());
+                if p.is_empty() { None } else { Some(p) }
             },
+            yt_dlp_path: env_or("DUMAHH_YTDLP_PATH", "yt-dlp".to_string()),
             version: env!("GIT_HASH"),
         }
     }
@@ -74,6 +68,20 @@ impl Default for Config {
 
 lazy_static! {
     pub static ref CONFIG: Config = Config::default();
+    pub static ref YTDLP_ARGS: Vec<String> = vec![
+        "--max-filesize".into(),
+        CONFIG.max_file_size.to_string(),
+        "--no-playlist".into(),
+        "--no-exec".into(),
+        "--abort-on-error".into(),
+        "-P".into(),
+        CONFIG
+            .root_dir
+            .clone()
+            .into_os_string()
+            .into_string()
+            .unwrap(),
+    ];
 }
 
 impl std::fmt::Debug for CONFIG {
