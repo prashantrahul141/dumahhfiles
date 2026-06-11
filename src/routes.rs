@@ -71,10 +71,12 @@ pub async fn download(
 
     /* if we can check file size now, check it */
     let mut was_filesize_updated = false;
+    let mut final_filesize = 0;
     info!("trying to check filesize");
     if let Ok(filesize) = state.downloader.get_filesize(&download_form.url).await {
         debug!("was able to retrieve file size = {}", filesize);
         was_filesize_updated = true;
+        final_filesize = filesize;
         let ondisk = *state.on_disk_files_size.read().await;
         if ondisk + filesize >= CONFIG.max_on_disk_storage {
             error!(
@@ -138,14 +140,17 @@ pub async fn download(
         let metadata = tokio::fs::metadata(&filepath)
             .await
             .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, DumAhhError::Internal))?;
-        *state.on_disk_files_size.write().await += metadata.len() as usize;
+        final_filesize = metadata.len() as usize;
+        *state.on_disk_files_size.write().await += final_filesize;
     }
 
     /* add cleanup before returning */
-    tokio::spawn(async {
+    let copied_state = state.clone();
+    tokio::spawn(async move {
         let seconds = (CONFIG.retention_mins * 60.0) as u64;
         debug!("will delete {:?} after {} seconds", filepath, seconds);
         tokio::time::sleep(Duration::from_secs(seconds)).await;
+        *copied_state.on_disk_files_size.write().await -= final_filesize;
         clean_file(filepath).await;
     });
 
