@@ -33,6 +33,7 @@ pub struct Config {
     pub retention_mins: f32,
     pub concurrent_downlods: usize,
     pub version: &'static str,
+    pub requests_per_minute: u64,
     pub yt_dlp_path: String,
     pub password: Option<String>,
 }
@@ -54,8 +55,9 @@ impl Default for Config {
             max_filename_length: env_or("DUMAHH_MAX_FILENAME_LENGTH", 240),
             max_on_disk_storage: env_or("DUMAHH_MAX_ON_DISK_STORAGE", 5 * 1024 * 1024 * 1024),
             max_file_size: env_or("DUMAHH_MAX_FILE_SIZE", 100 * 1024 * 1024),
-            retention_mins: env_or("DUMAHH_RETENTION_MINS", 5.0),
+            retention_mins: env_or("DUMAHH_RETENTION_MINS", 3.0),
             concurrent_downlods: env_or("DUMAHH_CONCURRENT_DOWNLOAD", 3),
+            requests_per_minute: env_or("DUMAHH_REQUESTS_PER_MINUTE", 30),
             password: {
                 let p = env_or("DUMAHH_PASSWORD", "".to_string());
                 if p.is_empty() { None } else { Some(p) }

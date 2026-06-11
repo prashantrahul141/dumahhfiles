@@ -2,14 +2,16 @@ mod routes;
 mod state;
 mod template;
 mod utils;
+mod yt_dlp;
 
 use crate::routes::{download, root};
 use crate::state::{CONFIG, RunTimeState};
-use axum::{Router, http::Request, response::Response, routing::get};
+use axum::{BoxError, Router, error_handling::HandleErrorLayer, http::StatusCode, routing::get};
+use axum::{http::Request, response::Response};
 use std::fs;
 use std::sync::Arc;
 use std::{net::SocketAddr, time::Duration};
-use tokio::sync::RwLock;
+use tower::{ServiceBuilder, buffer::BufferLayer, limit::RateLimitLayer};
 use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
 use tracing::{Span, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -53,13 +55,26 @@ async fn main() {
     setup_tracing();
     setup_files_dir();
     info!("config = {CONFIG:?}");
-
     // app state
-    let state = Arc::new(RwLock::new(RunTimeState::new().await));
+    let state = Arc::new(RunTimeState::new().await);
 
     // axum app
     let app = Router::new()
         .route("/", get(root).post(download))
+        .layer(
+            ServiceBuilder::new()
+                .layer(HandleErrorLayer::new(|err: BoxError| async move {
+                    (
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                        format!("Unhandled error: {}", err),
+                    )
+                }))
+                .layer(BufferLayer::new(1024))
+                .layer(RateLimitLayer::new(
+                    CONFIG.requests_per_minute,
+                    Duration::from_mins(1),
+                )),
+        )
         .layer(
             TraceLayer::new_for_http()
                 .on_request(|_request: &Request<_>, _span: &Span| {
