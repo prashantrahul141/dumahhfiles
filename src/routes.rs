@@ -9,11 +9,8 @@ use axum::body::Body;
 use axum::http::header::CONTENT_DISPOSITION;
 use axum::http::{HeaderValue, Request};
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
-use tokio::sync::RwLock;
 use tower::ServiceExt;
 use tracing::{debug, error};
-use yt_dlp::DownloadStatus;
-use yt_dlp::{self};
 
 pub async fn root() -> impl IntoResponse {
     HtmlTemplate(IndexTemplate {
@@ -25,12 +22,11 @@ pub async fn root() -> impl IntoResponse {
 }
 
 pub async fn download(
-    State(state): State<Arc<RwLock<RunTimeState>>>,
+    State(state): State<Arc<RunTimeState>>,
     Form(download_form): Form<DownloadForm>,
 ) -> Result<impl IntoResponse, (StatusCode, DumAhhError)> {
     let parsed_url = parse_url(&download_form.url).map_err(|e| (StatusCode::BAD_REQUEST, e))?;
     debug!(parsed_url = parsed_url.as_str());
-    let r_guard = state.read().await;
 
     /* if passwords enabled */
     if CONFIG.password.is_some() {
@@ -42,93 +38,63 @@ pub async fn download(
     }
 
     /* total files limit */
-    if r_guard.on_disk_files_size >= CONFIG.max_on_disk_storage {
+    let ondisk = *state.on_disk_files_size.read().await;
+    if ondisk >= CONFIG.max_on_disk_storage {
         error!(
             "reached set disk limit on_disk = {on_disk} max = {max}",
-            on_disk = r_guard.on_disk_files_size,
+            on_disk = ondisk,
             max = CONFIG.max_on_disk_storage
         );
         return Err((StatusCode::INSUFFICIENT_STORAGE, DumAhhError::OutOfStorage));
     }
 
-    debug!("fetching video info");
-    let video_info = r_guard
-        .downloader
-        .fetch_video_infos(parsed_url)
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                DumAhhError::Internal("Failed to fetch video info".to_string()),
-            )
-        })?;
+    /* if we can check file size now, check it */
+    debug!("trying to check filesize");
+    if let Ok(filesize) = state.downloader.get_filesize(&download_form.url).await {
+        debug!("was able to retrieve file size = {}", filesize);
+        let ondisk = *state.on_disk_files_size.read().await;
+        if ondisk + filesize >= CONFIG.max_on_disk_storage {
+            error!(
+                "reached storage limit ondisk + filesize = {}, max on disk = {}",
+                ondisk + filesize,
+                CONFIG.max_on_disk_storage
+            );
+            return Err((StatusCode::INSUFFICIENT_STORAGE, DumAhhError::OutOfStorage));
+        }
 
-    debug!("getting best format");
-    let video_format = video_info.best_audio_video_format().map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            DumAhhError::Internal("Failed to fetch video info".to_string()),
-        )
-    })?;
-
-    debug!("first surety check for file size limit");
-    if let Some(approx_size) = video_format.file_info.filesize_approx
-        && approx_size >= CONFIG.max_file_size as i64
-    {
-        return Err((
-            StatusCode::INSUFFICIENT_STORAGE,
-            DumAhhError::FileTooBig(CONFIG.max_file_size),
-        ));
-    }
-
-    debug!("getting format's url");
-    let url = video_format.url().map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            DumAhhError::Internal("Failed to fetch video info".to_string()),
-        )
-    })?;
-
-    debug!("getting format's url");
-    let manager = r_guard.downloader.download_manager();
-
-    /* create filename */
-    debug!("cleaning filename and path");
-    let cleaned_filename = limit_filename_len(
-        format!(
-            "{}.{}",
-            clean_filename(video_info.title.clone()),
-            video_format.codec_info.video_ext
-        ),
-        CONFIG.max_filename_length,
-    );
-    let cleaned_filepath = CONFIG.root_dir.join(&cleaned_filename);
-    debug!(
-        "cleaned filename = {:?}, cleaned_filepath = {:?}",
-        &cleaned_filename, cleaned_filepath
-    );
-
-    /* start download */
-    debug!("adding download to queue");
-    let download_id = manager.enqueue(url, &cleaned_filepath, None).await;
-
-    /* make sure we dont go over the limit while downloading */
-    debug!("starting to download with id = {}", download_id);
-
-    /* hold for download to finish */
-    let status = manager
-        .wait_for_completion(download_id)
-        .await
-        .ok_or((StatusCode::INTERNAL_SERVER_ERROR, DumAhhError::Unknown))?;
-    match status {
-        DownloadStatus::Completed => {}
-        _ => {
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, DumAhhError::Unknown));
+        if filesize > CONFIG.max_file_size {
+            error!(
+                "file too big. filesize = {}, max_file_size = {}",
+                filesize, CONFIG.max_file_size
+            );
+            return Err((StatusCode::INSUFFICIENT_STORAGE, DumAhhError::FileTooBig));
         }
     }
 
-    /* return file */
-    let service = tower_http::services::ServeFile::new(&cleaned_filepath);
+    /* create filename */
+    debug!("cleaning filename and path");
+    let raw_filename = state
+        .downloader
+        .get_filename(&download_form.url)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    let filename = limit_filename_len(clean_filename(raw_filename), CONFIG.max_filename_length);
+    let filepath = CONFIG.root_dir.join(&filename);
+    debug!("filename = {:?}, filepath = {:?}", &filename, &filepath);
+
+    /* start download */
+    debug!("adding download to queue");
+    let _ = state
+        .downloader
+        .download(&download_form.url, &filename)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    debug!("download done, returing file path = {:?}", &filepath);
+
+    /* create service to return file */
+    let service = tower_http::services::ServeFile::new(&filepath);
     let mut response = service
         .oneshot(Request::new(Body::empty()))
         .await
@@ -136,26 +102,18 @@ pub async fn download(
         .map_err(|_| (StatusCode::NOT_FOUND, DumAhhError::FileNotFound))?;
     response.headers_mut().insert(
         CONTENT_DISPOSITION,
-        HeaderValue::from_str(&format!(r#"attachment; filename="{cleaned_filename}""#)).map_err(
-            |_| {
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    DumAhhError::Internal("Failed to server file".to_string()),
-                )
-            },
-        )?,
+        HeaderValue::from_str(&format!(r#"attachment; filename="{}""#, filename))
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, DumAhhError::Internal))?,
     );
 
-    /* add cleanup */
-
+    /* add cleanup before returning */
     tokio::spawn(async {
         let seconds = (CONFIG.retention_mins * 60.0) as u64;
-        debug!(
-            "will delete {:?} after {} seconds",
-            cleaned_filepath, seconds
-        );
+        debug!("will delete {:?} after {} seconds", filepath, seconds);
         tokio::time::sleep(Duration::from_secs(seconds)).await;
-        clean_file(cleaned_filepath).await;
+        clean_file(filepath).await;
     });
+
+    /* return file */
     Ok((StatusCode::OK, response))
 }
