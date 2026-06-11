@@ -49,25 +49,25 @@ pub async fn download(
         return Err((StatusCode::INSUFFICIENT_STORAGE, DumAhhError::OutOfStorage));
     }
 
-    info!("getting metadata");
     /* fetch metadata */
+    info!("getting metadata");
     let metadata = state
         .downloader
         .get_metadata(&download_form.url)
         .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+        .map_err(|e| {
+            error!("failed to get metadata: {:?}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, e);
+        })?;
 
+    /* mediatype */
     debug!("getting mediatype");
-    let mediatype = state
-        .downloader
-        .get_media_type(metadata)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
-
-    if mediatype != "video" {
-        error!("mediatype is not a video =  {}", mediatype);
-        return Err((StatusCode::NOT_ACCEPTABLE, DumAhhError::NotAVideo));
-    }
+    if let Ok(mediatype) = state.downloader.get_media_type(metadata).await {
+        if mediatype != "video" {
+            error!("mediatype is not a video =  {}", mediatype);
+            return Err((StatusCode::NOT_ACCEPTABLE, DumAhhError::NotAVideo));
+        }
+    };
 
     /* if we can check file size now, check it */
     let mut was_filesize_updated = false;

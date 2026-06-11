@@ -137,7 +137,9 @@ impl YtDlp {
     pub async fn get_media_type(&self, metadata: Value) -> Result<String, DumAhhError> {
         let m = match &metadata["media_type"] {
             Value::String(m) => m,
-            _ => return Err(DumAhhError::Internal),
+            b => {
+                error!("media_type is not string: {:?}", b );
+                return Err(DumAhhError::Internal);},
         };
         Ok(m.to_owned())
     }
