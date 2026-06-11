@@ -128,7 +128,7 @@ files are deleted automatically after {{ retention_mins }} mins.
   <script>
     const form = document.getElementById('upload_form');
     const btn = document.getElementById('submit_btn');
-    form.addEventListener('submit', async () => {
+    form.addEventListener('submit', async (e) => {
       console.log('runing');
       btn.disabled = true;
       btn.textContent = 'downloading...';

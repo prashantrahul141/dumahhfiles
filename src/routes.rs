@@ -57,17 +57,17 @@ pub async fn download(
         .await
         .map_err(|e| {
             error!("failed to get metadata: {:?}", e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, e);
+            (StatusCode::INTERNAL_SERVER_ERROR, e)
         })?;
 
     /* mediatype */
     debug!("getting mediatype");
-    if let Ok(mediatype) = state.downloader.get_media_type(metadata).await {
-        if mediatype != "video" {
-            error!("mediatype is not a video =  {}", mediatype);
-            return Err((StatusCode::NOT_ACCEPTABLE, DumAhhError::NotAVideo));
-        }
-    };
+    if let Ok(mediatype) = state.downloader.get_media_type(metadata).await
+        && mediatype != "video"
+    {
+        error!("mediatype is not a video =  {}", mediatype);
+        return Err((StatusCode::NOT_ACCEPTABLE, DumAhhError::NotAVideo));
+    }
 
     /* if we can check file size now, check it */
     let mut was_filesize_updated = false;
