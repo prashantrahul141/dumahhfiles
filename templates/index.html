@@ -129,7 +129,7 @@ files are deleted automatically after {{ retention_mins }} mins.
     const form = document.getElementById('upload_form');
     const btn = document.getElementById('submit_btn');
     form.addEventListener('submit', async (e) => {
-      console.log('runing');
+      console.log('running');
       btn.disabled = true;
       btn.textContent = 'downloading...';
       e.preventDefault();
@@ -146,6 +146,8 @@ files are deleted automatically after {{ retention_mins }} mins.
         a.download = '';
         a.click();
       } finally {
+        console.log('finished');
+        btn.textContent = 'download';
         btn.disabled = false;
       }
     });
