@@ -4,7 +4,7 @@ use tokio::sync::Semaphore;
 use tracing::{debug, error};
 
 use crate::{
-    state::{CONFIG, YTDLP_ARGS, YTDLP_FILTER},
+    state::{CONFIG, YTDLP_ARGS, YTDLP_COOKIES, YTDLP_FILTER},
     utils::DumAhhError,
 };
 
@@ -30,6 +30,7 @@ impl DownloadCommand {
             ..Default::default()
         };
         s.args.extend_from_slice(&YTDLP_FILTER);
+        s.args.extend_from_slice(&YTDLP_COOKIES);
         s.args.push("-o".into());
         s.args.push(filename);
         s.args.push(url);
@@ -100,6 +101,7 @@ impl YtDlp {
         let mut cmd = DownloadCommand::default();
         cmd.args.push("--dump-json".into());
         cmd.args.extend_from_slice(&YTDLP_FILTER);
+        cmd.args.extend_from_slice(&YTDLP_COOKIES);
         cmd.args.push(url.into());
 
         let output = self
@@ -138,8 +140,9 @@ impl YtDlp {
         let m = match &metadata["media_type"] {
             Value::String(m) => m,
             b => {
-                error!("media_type is not string: {:?}", b );
-                return Err(DumAhhError::Internal);},
+                error!("media_type is not string: {:?}", b);
+                return Err(DumAhhError::Internal);
+            }
         };
         Ok(m.to_owned())
     }
@@ -176,6 +179,7 @@ impl YtDlp {
     async fn get_property(&self, url: &str, property: &str) -> Result<String, DumAhhError> {
         let mut cmd = DownloadCommand::default();
         cmd.args.extend_from_slice(&YTDLP_FILTER);
+        cmd.args.extend_from_slice(&YTDLP_COOKIES);
         cmd.args
             .extend_from_slice(&["--print".into(), property.into(), url.to_owned()]);
 

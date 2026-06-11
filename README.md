@@ -20,8 +20,9 @@ Configuration can be done via environment variables
 | DUMAHH_RETENTION_MINS      | 3 (mins)          | how long to keep files                       |
 | DUMAHH_CONCURRENT_DOWNLOAD | 3                 | concurrent download limit                    |
 | DUMAHH_REQUESTS_PER_MINUTE | 30 (per minute)   | rate limiter                                 |
-| DUMAHH_PASSWORD            | empty             | password protect, keep empty to allow anyone |
+| DUMAHH_PASSWORD            | not set           | password protect, dont set to allow anyone   |
 | DUMAHH_YTDLP_PATH          | "yt-dlp"          | path to yt-dlp binary                        |
+| DUMAHH_COOKIES_FILEPATH    | not set           | path to cookies file given to ytdlp          |
 | RUST_LOG                   | "debug"           | logging level                                |
 | version                    | "unknown"         | current commit hash                          |
 

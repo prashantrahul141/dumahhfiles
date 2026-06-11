@@ -36,6 +36,7 @@ pub struct Config {
     pub requests_per_minute: u64,
     pub yt_dlp_path: String,
     pub password: Option<String>,
+    pub cookies_file: Option<PathBuf>,
 }
 
 #[derive(Deserialize)]
@@ -63,6 +64,14 @@ impl Default for Config {
                 if p.is_empty() { None } else { Some(p) }
             },
             yt_dlp_path: env_or("DUMAHH_YTDLP_PATH", "yt-dlp".to_string()),
+            cookies_file: {
+                let p = env_or("DUMAHH_COOKIES_FILEPATH", "".to_string());
+                if p.is_empty() {
+                    None
+                } else {
+                    Some(std::path::PathBuf::from(p))
+                }
+            },
             version: env!("GIT_HASH"),
         }
     }
@@ -70,6 +79,14 @@ impl Default for Config {
 
 lazy_static! {
     pub static ref CONFIG: Config = Config::default();
+    pub static ref YTDLP_COOKIES: Vec<String> = {
+        let mut args = vec![];
+        if let Some(cookies_file) = &CONFIG.cookies_file {
+            let cookies_file = cookies_file.clone().into_os_string().into_string().unwrap();
+            args.extend_from_slice(&["--cookies".into(), cookies_file]);
+        }
+        args
+    };
     pub static ref YTDLP_FILTER: Vec<String> = vec![
         "--match-filters".into(),
         "!is_live".into(),
