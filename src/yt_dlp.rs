@@ -110,6 +110,10 @@ impl YtDlp {
             .map_err(|_| DumAhhError::DownloadFailed)?;
 
         if !output.status.success() {
+            error!(
+                "stderr = {}",
+                String::from_utf8(output.stderr).unwrap_or("".into())
+            );
             return Err(DumAhhError::DownloadFailed);
         }
 
