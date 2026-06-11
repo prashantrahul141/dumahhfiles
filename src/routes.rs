@@ -49,9 +49,11 @@ pub async fn download(
     }
 
     /* if we can check file size now, check it */
+    let mut was_filesize_updated = false;
     debug!("trying to check filesize");
     if let Ok(filesize) = state.downloader.get_filesize(&download_form.url).await {
         debug!("was able to retrieve file size = {}", filesize);
+        was_filesize_updated = true;
         let ondisk = *state.on_disk_files_size.read().await;
         if ondisk + filesize >= CONFIG.max_on_disk_storage {
             error!(
@@ -69,6 +71,9 @@ pub async fn download(
             );
             return Err((StatusCode::INSUFFICIENT_STORAGE, DumAhhError::FileTooBig));
         }
+
+        debug!("updating file size prematurely");
+        *state.on_disk_files_size.write().await += filesize;
     }
 
     /* create filename */
@@ -105,6 +110,15 @@ pub async fn download(
         HeaderValue::from_str(&format!(r#"attachment; filename="{}""#, filename))
             .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, DumAhhError::Internal))?,
     );
+
+    /* update filesize if wasnt already */
+    if !was_filesize_updated {
+        debug!("filesize wasnt added, incrementing now.");
+        let metadata = tokio::fs::metadata(&filepath)
+            .await
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, DumAhhError::Internal))?;
+        *state.on_disk_files_size.write().await += metadata.len() as usize;
+    }
 
     /* add cleanup before returning */
     tokio::spawn(async {
