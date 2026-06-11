@@ -1,9 +1,10 @@
+use serde_json::Value;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tracing::{debug, error};
 
 use crate::{
-    state::{CONFIG, YTDLP_ARGS},
+    state::{CONFIG, YTDLP_ARGS, YTDLP_FILTER},
     utils::DumAhhError,
 };
 
@@ -28,6 +29,7 @@ impl DownloadCommand {
             args: YTDLP_ARGS.clone(),
             ..Default::default()
         };
+        s.args.extend_from_slice(&YTDLP_FILTER);
         s.args.push("-o".into());
         s.args.push(filename);
         s.args.push(url);
@@ -84,26 +86,75 @@ impl YtDlp {
             .map_err(|_| DumAhhError::DownloadFailed)?;
 
         if !output.status.success() {
+            error!(
+                "stderr = {}",
+                String::from_utf8(output.stderr).unwrap_or("".into())
+            );
             return Err(DumAhhError::DownloadFailed);
         }
 
         Ok(DownloadOutput {})
     }
 
+    pub async fn get_metadata(&self, url: &str) -> Result<Value, DumAhhError> {
+        let mut cmd = DownloadCommand::default();
+        cmd.args.push("--dump-json".into());
+        cmd.args.extend_from_slice(&YTDLP_FILTER);
+        cmd.args.push(url.into());
+
+        let output = self
+            .runner
+            .run(&cmd)
+            .await
+            .inspect_err(|e| error!("failed to fetch info: {}", e))
+            .map_err(|_| DumAhhError::DownloadFailed)?;
+
+        if !output.status.success() {
+            return Err(DumAhhError::DownloadFailed);
+        }
+
+        let out = String::from_utf8(output.stdout)
+            .map_err(|_| DumAhhError::DownloadFailed)?
+            .trim()
+            .to_string();
+
+        if out == "NA" {
+            return Err(DumAhhError::DownloadFailed);
+        }
+
+        let metadata: Value = serde_json::from_str(&out).map_err(|_| {
+            error!("failed to retrieve metadata");
+            DumAhhError::Internal
+        })?;
+
+        Ok(metadata)
+    }
+
+    pub async fn get_media_type(&self, metadata: Value) -> Result<String, DumAhhError> {
+        let m = match &metadata["media_type"] {
+            Value::String(m) => m,
+            _ => return Err(DumAhhError::Internal),
+        };
+        Ok(m.to_owned())
+    }
+
     pub async fn get_filesize(&self, url: &str) -> Result<usize, DumAhhError> {
         if let Ok(s) = self.get_exact_filesize(url).await {
+            debug!("got exact file size = {}", s);
             return Ok(s);
         }
 
         if let Ok(s) = self.get_approx_filesize(url).await {
+            debug!("got approx file size = {}", s);
             return Ok(s);
         }
 
+        debug!("failed to get filesize");
         Err(DumAhhError::DownloadFailed)
     }
 
     pub async fn get_approx_filesize(&self, url: &str) -> Result<usize, DumAhhError> {
-        let s = self.get_property(url, "filesize").await?;
+        let s = self.get_property(url, "approx_filesize").await?;
         s.parse::<usize>().map_err(|_| DumAhhError::DownloadFailed)
     }
 
@@ -118,6 +169,7 @@ impl YtDlp {
 
     async fn get_property(&self, url: &str, property: &str) -> Result<String, DumAhhError> {
         let mut cmd = DownloadCommand::default();
+        cmd.args.extend_from_slice(&YTDLP_FILTER);
         cmd.args
             .extend_from_slice(&["--print".into(), property.into(), url.to_owned()]);
 
@@ -129,6 +181,10 @@ impl YtDlp {
             .map_err(|_| DumAhhError::DownloadFailed)?;
 
         if !output.status.success() {
+            error!(
+                "stderr = {}",
+                String::from_utf8(output.stderr).unwrap_or("".into())
+            );
             return Err(DumAhhError::DownloadFailed);
         }
         let out = String::from_utf8(output.stdout)

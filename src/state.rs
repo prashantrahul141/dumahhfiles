@@ -70,10 +70,16 @@ impl Default for Config {
 
 lazy_static! {
     pub static ref CONFIG: Config = Config::default();
-    pub static ref YTDLP_ARGS: Vec<String> = vec![
+    pub static ref YTDLP_FILTER: Vec<String> = vec![
+        "--match-filters".into(),
+        "!is_live".into(),
+        "-f".into(),
+        format!("best"),
+        "--no-playlist".into(),
         "--max-filesize".into(),
         CONFIG.max_file_size.to_string(),
-        "--no-playlist".into(),
+    ];
+    pub static ref YTDLP_ARGS: Vec<String> = vec![
         "--no-exec".into(),
         "--abort-on-error".into(),
         "-P".into(),
