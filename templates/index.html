@@ -100,13 +100,13 @@ easy download files
 //// -------------------------------------------------------------------------
 
 <form
-  action="."
+  action="/"
   method="post"
   id="upload_form">  <input required name="url" id="url_list" placeholder="URL"/>
   {% if password_enabled %} 
   <input type="password" required placeholder="Password" name="password" />
   {% endif %}
-  <button type="submit">Download</button></form>
+  <button type="submit" id="submit_btn">Download</button></form>
 
 files are deleted automatically after {{ retention_mins }} mins.
 
@@ -125,4 +125,27 @@ files are deleted automatically after {{ retention_mins }} mins.
 <a target="_blank" href="https://github.com/prashantrahul141/dumahhfiles">source :3</a> (#{{ version }})
 </pre>
   </body>
+  <script>
+    const form = document.getElementById('upload_form');
+    const btn = document.getElementById('submit_btn');
+    form.addEventListener('submit', async () => {
+      e.preventDefault();
+      const data = new URLSearchParams(new FormData(form));
+      btn.disabled = true;
+      try {
+        const response = await fetch('/', {
+          method: 'POST',
+          body: data,
+        });
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '';
+        a.click();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  </script>
 </html>
