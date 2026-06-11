@@ -140,6 +140,10 @@ files are deleted automatically after {{ retention_mins }} mins.
           body: data,
           signal: AbortSignal.timeout(300000),
         });
+        if (response.status != 200) {
+          alert(await response.text());
+          return;
+        }
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
