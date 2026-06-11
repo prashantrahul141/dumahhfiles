@@ -21,7 +21,8 @@ fn main() {
         && let Some(ref_str) = String::from_utf8(ref_bytes).ok()
         && ref_str.starts_with("ref:")
     {
-        let ref_path = ref_str.trim_start_matches("ref:").trim();
+        let ref_path = ref_str.trim_start_matches("ref: ").trim();
+        println!("cargo::warning=.git/{}", ref_path);
         println!("cargo::rerun-if-changed=.git/{}", ref_path);
     }
 }
