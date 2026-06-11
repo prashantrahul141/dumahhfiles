@@ -18,6 +18,8 @@ pub enum DumAhhError {
     InvalidRequest(String),
     #[error("Wrong password")]
     WrongPassword,
+    #[error("Not a video")]
+    NotAVideo,
     #[error("File too big\n")]
     FileTooBig,
     #[error("Too many files, allowed a maximum of: {0}\n")]
