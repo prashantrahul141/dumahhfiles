@@ -11,13 +11,15 @@ pub enum DumAhhError {
     #[error("I/O Error\n")]
     IO(#[from] io::Error),
     #[error("Internal Error\n")]
-    Internal(String),
+    Internal,
+    #[error("Failed to download")]
+    DownloadFailed,
     #[error("Invalid Request: {0}\n")]
     InvalidRequest(String),
     #[error("Wrong password")]
     WrongPassword,
-    #[error("File too big, max file size in bytes: {0} bytes\n")]
-    FileTooBig(u64),
+    #[error("File too big\n")]
+    FileTooBig,
     #[error("Too many files, allowed a maximum of: {0}\n")]
     TooManyFiles(usize),
     #[error("File not found\n")]
