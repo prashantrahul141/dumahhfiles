@@ -46,7 +46,7 @@ fn setup_files_dir() {
         fs::remove_dir_all(&CONFIG.root_dir).unwrap();
     }
     info!("creating new files directory at path={:?}", CONFIG.root_dir);
-    _ = fs::create_dir(&CONFIG.root_dir);
+    _ = fs::create_dir_all(&CONFIG.root_dir);
 }
 
 #[tokio::main]
