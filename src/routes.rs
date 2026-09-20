@@ -1,14 +1,15 @@
-use std::sync::Arc;
-use std::time::Duration;
-
 use crate::state::{CONFIG, DownloadForm, RunTimeState};
 use crate::template::{HtmlTemplate, IndexTemplate};
-use crate::utils::{DumAhhError, clean_file, clean_filename, limit_filename_len, parse_url};
+use crate::utils::{
+    DumAhhError, clean_file, clean_filename, find_file_from_prefix, limit_filename_len, parse_url,
+    split_name_ext,
+};
 use axum::Form;
 use axum::body::Body;
 use axum::http::header::CONTENT_DISPOSITION;
 use axum::http::{HeaderValue, Request};
 use axum::{extract::State, http::StatusCode, response::IntoResponse};
+use std::{sync::Arc, time::Duration};
 use tower::ServiceExt;
 use tracing::{debug, error, info};
 
@@ -49,31 +50,17 @@ pub async fn download(
         return Err((StatusCode::INSUFFICIENT_STORAGE, DumAhhError::OutOfStorage));
     }
 
-    /* fetch metadata */
-    info!("getting metadata");
-    let metadata = state
-        .downloader
-        .get_metadata(&download_form.url)
-        .await
-        .map_err(|e| {
-            error!("failed to get metadata: {:?}", e);
-            (StatusCode::INTERNAL_SERVER_ERROR, e)
-        })?;
-
-    /* mediatype */
-    debug!("getting mediatype");
-    if let Ok(mediatype) = state.downloader.get_media_type(metadata).await
-        && mediatype != "video"
-    {
-        error!("mediatype is not a video =  {}", mediatype);
-        return Err((StatusCode::NOT_ACCEPTABLE, DumAhhError::NotAVideo));
-    }
+    let audio_only = download_form.audio_only.is_some();
 
     /* if we can check file size now, check it */
     let mut was_filesize_updated = false;
     let mut final_filesize = 0;
     info!("trying to check filesize");
-    if let Ok(filesize) = state.downloader.get_filesize(&download_form.url).await {
+    if let Ok(filesize) = state
+        .downloader
+        .get_filesize(&download_form.url, audio_only)
+        .await
+    {
         debug!("was able to retrieve file size = {}", filesize);
         was_filesize_updated = true;
         final_filesize = filesize;
@@ -103,25 +90,39 @@ pub async fn download(
     info!("cleaning filename and path");
     let raw_filename = state
         .downloader
-        .get_filename(&download_form.url)
+        .get_filename(&download_form.url, audio_only)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
-    let filename = limit_filename_len(clean_filename(raw_filename), CONFIG.max_filename_length);
-    let filepath = CONFIG.root_dir.join(&filename);
-    info!("filename = {:?}, filepath = {:?}", &filename, &filepath);
+    let (file_prefix, file_ext) = split_name_ext(limit_filename_len(
+        clean_filename(raw_filename),
+        CONFIG.max_filename_length,
+    ))
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
+
+    let filepath = CONFIG.root_dir.join(&file_prefix);
+    info!(
+        "file_prefix = {:?} ext = {:?}, filepath = {:?}",
+        &file_prefix, &file_ext, &filepath
+    );
 
     /* start download */
     info!("adding download to queue");
     let _ = state
         .downloader
-        .download(&download_form.url, &filename)
+        .download(
+            &download_form.url,
+            &file_prefix,
+            download_form.audio_only.is_some(),
+        )
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
 
     info!("download done, returing file path = {:?}", &filepath);
 
     /* create service to return file */
+    let filepath = find_file_from_prefix(&CONFIG.root_dir, &file_prefix)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e))?;
     let service = tower_http::services::ServeFile::new(&filepath);
     let mut response = service
         .oneshot(Request::new(Body::empty()))
@@ -130,8 +131,12 @@ pub async fn download(
         .map_err(|_| (StatusCode::NOT_FOUND, DumAhhError::FileNotFound))?;
     response.headers_mut().insert(
         CONTENT_DISPOSITION,
-        HeaderValue::from_str(&format!(r#"attachment; filename="{}""#, filename))
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, DumAhhError::Internal))?,
+        HeaderValue::from_str(&format!(r#"attachment; filename="{}""#, file_prefix)).map_err(
+            |_| {
+                error!("failed serving file");
+                (StatusCode::INTERNAL_SERVER_ERROR, DumAhhError::Internal)
+            },
+        )?,
     );
 
     /* update filesize if wasnt already */

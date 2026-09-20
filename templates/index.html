@@ -87,6 +87,51 @@
         transform: translate(2px, 2px);
         box-shadow: 1px 1px 0 var(--pr);
       }
+
+      .checkbox {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.6rem;
+
+        color: var(--pr);
+        cursor: pointer;
+        user-select: none;
+      }
+
+      .checkbox input {
+        appearance: none;
+        width: 1rem;
+        height: 1rem;
+        margin: 0;
+
+        background: transparent;
+        border: 1px solid var(--pr);
+
+        border-radius: 0;
+        cursor: pointer;
+
+        transition:
+          background 0.1s ease,
+          box-shadow 0.15s ease;
+      }
+
+      .checkbox input:hover {
+        box-shadow: 2px 2px 0 var(--pr);
+      }
+
+      .checkbox input:checked {
+        background: var(--pr);
+      }
+
+      .checkbox input:checked::after {
+        content: "✓";
+
+        display: block;
+        color: var(--bg);
+        font-size: 0.75rem;
+        line-height: 0.9rem;
+        text-align: center;
+      }
     </style>
   </head>
   <body>
@@ -103,7 +148,12 @@ easy download files
   action="/"
   method="post"
   id="upload_form">  <input required name="url" id="url_list" placeholder="URL"/>
-  {% if password_enabled %} 
+
+  <label class="checkbox">
+  <input type="checkbox" name="audio_only">
+  <span>Audio only</span>
+  </label>
+  {% if password_enabled %}
   <input type="password" required placeholder="Password" name="password" />
   {% endif %}
   <button type="submit" id="submit_btn">download</button></form>

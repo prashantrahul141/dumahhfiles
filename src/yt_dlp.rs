@@ -24,11 +24,14 @@ impl Default for DownloadCommand {
 }
 
 impl DownloadCommand {
-    pub fn from_url(url: String, filename: String) -> Self {
+    pub fn from_url(url: String, filename: String, audio_only: bool) -> Self {
         let mut s = DownloadCommand {
             args: YTDLP_ARGS.clone(),
             ..Default::default()
         };
+        if audio_only {
+            s.args.push("-x".into());
+        }
         s.args.extend_from_slice(&YTDLP_FILTER);
         s.args.extend_from_slice(&YTDLP_COOKIES);
         s.args.push("-o".into());
@@ -71,8 +74,13 @@ impl Default for YtDlp {
 }
 
 impl YtDlp {
-    pub async fn download(&self, url: &str, filename: &str) -> Result<DownloadOutput, DumAhhError> {
-        let cmd = DownloadCommand::from_url(url.to_owned(), filename.to_owned());
+    pub async fn download(
+        &self,
+        url: &str,
+        filename: &str,
+        audio_only: bool,
+    ) -> Result<DownloadOutput, DumAhhError> {
+        let cmd = DownloadCommand::from_url(url.to_owned(), filename.to_owned(), audio_only);
         let _permit = self
             .permits
             .acquire()
@@ -97,9 +105,12 @@ impl YtDlp {
         Ok(DownloadOutput {})
     }
 
-    pub async fn get_metadata(&self, url: &str) -> Result<Value, DumAhhError> {
+    pub async fn get_metadata(&self, url: &str, audio_only: bool) -> Result<Value, DumAhhError> {
         let mut cmd = DownloadCommand::default();
         cmd.args.push("--dump-json".into());
+        if audio_only {
+            cmd.args.push("-x".into());
+        }
         cmd.args.extend_from_slice(&YTDLP_FILTER);
         cmd.args.extend_from_slice(&YTDLP_COOKIES);
         cmd.args.push(url.into());
@@ -147,13 +158,13 @@ impl YtDlp {
         Ok(m.to_owned())
     }
 
-    pub async fn get_filesize(&self, url: &str) -> Result<usize, DumAhhError> {
-        if let Ok(s) = self.get_exact_filesize(url).await {
+    pub async fn get_filesize(&self, url: &str, audio_only: bool) -> Result<usize, DumAhhError> {
+        if let Ok(s) = self.get_exact_filesize(url, audio_only).await {
             debug!("got exact file size = {}", s);
             return Ok(s);
         }
 
-        if let Ok(s) = self.get_approx_filesize(url).await {
+        if let Ok(s) = self.get_approx_filesize(url, audio_only).await {
             debug!("got approx file size = {}", s);
             return Ok(s);
         }
@@ -162,22 +173,40 @@ impl YtDlp {
         Err(DumAhhError::DownloadFailed)
     }
 
-    pub async fn get_approx_filesize(&self, url: &str) -> Result<usize, DumAhhError> {
-        let s = self.get_property(url, "approx_filesize").await?;
+    pub async fn get_approx_filesize(
+        &self,
+        url: &str,
+        audio_only: bool,
+    ) -> Result<usize, DumAhhError> {
+        let s = self
+            .get_property(url, "approx_filesize", audio_only)
+            .await?;
         s.parse::<usize>().map_err(|_| DumAhhError::DownloadFailed)
     }
 
-    pub async fn get_exact_filesize(&self, url: &str) -> Result<usize, DumAhhError> {
-        let s = self.get_property(url, "filesize").await?;
+    pub async fn get_exact_filesize(
+        &self,
+        url: &str,
+        audio_only: bool,
+    ) -> Result<usize, DumAhhError> {
+        let s = self.get_property(url, "filesize", audio_only).await?;
         s.parse::<usize>().map_err(|_| DumAhhError::DownloadFailed)
     }
 
-    pub async fn get_filename(&self, url: &str) -> Result<String, DumAhhError> {
-        self.get_property(url, "filename").await
+    pub async fn get_filename(&self, url: &str, audio_only: bool) -> Result<String, DumAhhError> {
+        self.get_property(url, "filename", audio_only).await
     }
 
-    async fn get_property(&self, url: &str, property: &str) -> Result<String, DumAhhError> {
+    async fn get_property(
+        &self,
+        url: &str,
+        property: &str,
+        audio_only: bool,
+    ) -> Result<String, DumAhhError> {
         let mut cmd = DownloadCommand::default();
+        if audio_only {
+            cmd.args.push("-x".into());
+        }
         cmd.args.extend_from_slice(&YTDLP_FILTER);
         cmd.args.extend_from_slice(&YTDLP_COOKIES);
         cmd.args

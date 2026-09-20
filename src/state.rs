@@ -39,10 +39,11 @@ pub struct Config {
     pub cookies_file: Option<PathBuf>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct DownloadForm {
     pub url: String,
     pub password: Option<String>,
+    pub audio_only: Option<String>,
 }
 
 impl Default for Config {

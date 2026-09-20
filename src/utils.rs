@@ -1,8 +1,8 @@
 use axum::response::IntoResponse;
 use lazy_static::lazy_static;
-use std::{io, path::PathBuf};
+use std::{ffi::OsString, io, path::PathBuf};
 use thiserror::Error;
-use tracing::debug;
+use tracing::{debug, error};
 use url::Url;
 
 #[derive(Error, Debug)]
@@ -12,6 +12,8 @@ pub enum DumAhhError {
     IO(#[from] io::Error),
     #[error("Internal Error\n")]
     Internal,
+    #[error("Invalid file name\n")]
+    InvalidFileName,
     #[error("Failed to download")]
     DownloadFailed,
     #[error("Invalid Request: {0}\n")]
@@ -82,6 +84,33 @@ fn truncate<S: AsRef<str>>(s: S, n: usize) -> String {
     s.as_ref().chars().take(n).collect()
 }
 
+pub fn split_name_ext<S: AsRef<str>>(filename: S) -> Result<(String, String), DumAhhError> {
+    let filename = filename.as_ref().to_string();
+    let pb = PathBuf::from(filename);
+
+    let Some(ext) = pb.extension() else {
+        error!("ext is none for pb = {pb:?}");
+        Err(DumAhhError::InvalidFileName)?
+    };
+
+    let ext = ext
+        .to_owned()
+        .into_string()
+        .map_err(|_| DumAhhError::InvalidFileName)?;
+
+    let Some(prefix) = pb.file_prefix() else {
+        error!("prefix is none for pb = {pb:?}");
+        Err(DumAhhError::InvalidFileName)?
+    };
+
+    let prefix = prefix
+        .to_owned()
+        .into_string()
+        .map_err(|_| DumAhhError::InvalidFileName)?;
+
+    Ok((prefix, ext))
+}
+
 pub fn limit_filename_len<S: AsRef<str>>(filename: S, max_len: usize) -> String {
     let filename = filename.as_ref();
 
@@ -114,4 +143,25 @@ pub fn limit_filename_len<S: AsRef<str>>(filename: S, max_len: usize) -> String 
 pub async fn clean_file(path: PathBuf) {
     debug!("removing file = {:?}", path);
     _ = tokio::fs::remove_file(path).await;
+}
+
+pub fn find_file_from_prefix(
+    dir_path: &PathBuf,
+    target_name: &String,
+) -> Result<PathBuf, DumAhhError> {
+    // Read the contents of the directory
+    let target_name = OsString::from(target_name);
+    for entry in std::fs::read_dir(dir_path).map_err(|_| DumAhhError::FileNotFound)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            if let Some(file_stem) = path.file_stem() {
+                if file_stem == target_name {
+                    return Ok(path);
+                }
+            }
+        }
+    }
+
+    Err(DumAhhError::FileNotFound)
 }
